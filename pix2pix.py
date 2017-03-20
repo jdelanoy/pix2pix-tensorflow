@@ -88,16 +88,15 @@ def load_examples():
         path_queue = tf.train.string_input_producer(input_paths, shuffle=a.mode == "train")
         reader = tf.WholeFileReader()
         paths, contents = reader.read(path_queue)
-        print (paths.get_shape())
-        print (contents.get_shape())
         raw_input = decode(contents)
+        print(raw_input.get_shape())
         raw_input = tf.image.convert_image_dtype(raw_input, dtype=tf.float32)
 
-        assertion = tf.assert_equal(tf.shape(raw_input)[2], 3, message="image does not have 3 channels")
+        assertion = tf.assert_equal(tf.shape(raw_input)[2], 4, message="image does not have 3 channels")
         with tf.control_dependencies([assertion]):
             raw_input = tf.identity(raw_input)
 
-        raw_input.set_shape([None, None, 3])
+        raw_input.set_shape([None, None, 4])
 
         # if a.lab_colorization:
         #     # load color and brightness from image, no B image exists here
@@ -111,6 +110,9 @@ def load_examples():
         a_images = preprocess(raw_input[:,:width//2,:])
         b_images = preprocess(raw_input[:,width//2:,:])
 
+    print(a_images.get_shape())
+    #rebuild voxels from image
+    
     if a.which_direction == "AtoB":
         inputs, targets = [a_images, b_images]
     elif a.which_direction == "BtoA":
@@ -120,32 +122,48 @@ def load_examples():
     
     # synchronize seed for image operations so that we do the same operations to both
     # input and output images
-    seed = random.randint(0, 2**31 - 1)
-    def transform(image):
+    #seed = random.randint(0, 2**31 - 1)
+    def transform_sketch(image):
         r = image
-        # if a.flip:
-        #     r = tf.image.random_flip_left_right(r, seed=seed)
-
         # area produces a nice downscaling, but does nearest neighbor for upscaling
         # assume we're going to be doing downscaling here
-        r = tf.image.resize_images(r, [CROP_SIZE, CROP_SIZE], method=tf.image.ResizeMethod.AREA)
+        r = tf.image.resize_images(r, [CROP_SIZE, CROP_SIZE], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+        return r[:,:,:3]
 
-        # offset = tf.cast(tf.floor(tf.random_uniform([2], 0, a.scale_size - CROP_SIZE + 1, seed=seed)), dtype=tf.int32)
-        # if a.scale_size > CROP_SIZE:
-        #     r = tf.image.crop_to_bounding_box(r, offset[0], offset[1], CROP_SIZE, CROP_SIZE)
-        # elif a.scale_size < CROP_SIZE:
-        #     raise Exception("scale size cannot be less than crop size")
-        return r
+    def transform_voxels(image):
+        vox_size=64
+        r = image
+        print ("tranform voxels")
+        print(r.get_shape())
+        # area produces a nice downscaling, but does nearest neighbor for upscaling
+        # assume we're going to be doing downscaling here
+        r = tf.image.resize_images(r, [CROP_SIZE, CROP_SIZE], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+        print(r.get_shape())
+        vox = r[:vox_size,:vox_size,:]
+        for i in range(0,256,64):
+            for j in range(0,256,64):
+                #print(str(i)+" "+str(j))
+                vox=tf.concat([vox,r[i:i+vox_size,j:j+vox_size,:]],2)
+                #vox.append(r[i:i+vox_size,j:j+vox_size,:])
+
+        #print(len(vox))
+        vox = vox[:,:,4:]
+        print(vox.get_shape())
+        #voxels=tf.concat(vox[1:],3)
+        #print(voxels.get_shape())
+        print ("end tranform voxels")
+        return vox
 
     with tf.name_scope("input_images"):
-        input_images = transform(inputs)
+        input_images = transform_sketch(inputs)
 
     with tf.name_scope("target_images"):
-        target_images = transform(targets)
+        target_images = transform_voxels(targets)
 
     paths_batch, inputs_batch, targets_batch = tf.train.batch([paths, input_images, target_images], batch_size=a.batch_size)
     steps_per_epoch = int(math.ceil(len(input_paths) / a.batch_size))
     print(input_images.get_shape())
+    print(target_images.get_shape())
 
     return Examples(
         paths=paths_batch,
