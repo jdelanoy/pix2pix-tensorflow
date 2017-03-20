@@ -474,15 +474,26 @@ def main():
         #     image = tf.image.resize_images(image, size=size, method=tf.image.ResizeMethod.BICUBIC)
         return tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
 
+    
+    def convert_voxels(image):
+        # if a.aspect_ratio != 1.0:
+        #     # upscale to correct aspect ratio
+        #     size = [CROP_SIZE, int(round(CROP_SIZE * a.aspect_ratio))]
+        #     image = tf.image.resize_images(image, size=size, method=tf.image.ResizeMethod.BICUBIC)
+        imageI = tf.argmax(image,2)
+        imageF = tf.expand_dims(tf.to_float(imageI)/64.0,-1);
+        #imageF = tf.image.convert_image_dtype(imageI, dtype=tf.float32)/64.0;
+        return tf.image.convert_image_dtype(imageF, dtype=tf.uint8, saturate=True)
+
     # reverse any processing on images so they can be written to disk or displayed to user
     with tf.name_scope("convert_inputs"):
         converted_inputs = convert(inputs)
 
     with tf.name_scope("convert_targets"):
-        converted_targets = convert(targets)
+        converted_targets = convert_voxels(targets)
 
     with tf.name_scope("convert_outputs"):
-        converted_outputs = convert(outputs)
+        converted_outputs = convert_voxels(outputs)
 
     with tf.name_scope("encode_images"):
         display_fetches = {
