@@ -206,8 +206,8 @@ def create_generator(generator_inputs, generator_outputs_channels):
         (a.ngf * 8, 0.5),   # decoder_6: [batch, 4, 4, ngf * 8 * 2] => [batch, 8, 8, ngf * 8 * 2]
         (a.ngf * 8, 0.0),   # decoder_5: [batch, 8, 8, ngf * 8 * 2] => [batch, 16, 16, ngf * 8 * 2]
         (a.ngf * 4, 0.0),   # decoder_4: [batch, 16, 16, ngf * 8 * 2] => [batch, 32, 32, ngf * 4 * 2]
-        (a.ngf * 2, 0.0),   # decoder_3: [batch, 32, 32, ngf * 4 * 2] => [batch, 64, 64, ngf * 2 * 2]
-        (a.ngf, 0.0),       # decoder_2: [batch, 64, 64, ngf * 2 * 2] => [batch, 128, 128, ngf * 2]
+        #(a.ngf * 2, 0.0),   # decoder_3: [batch, 32, 32, ngf * 4 * 2] => [batch, 64, 64, ngf * 2 * 2]
+        #(a.ngf, 0.0),       # decoder_2: [batch, 64, 64, ngf * 2 * 2] => [batch, 128, 128, ngf * 2]
     ]
 
     num_encoder_layers = len(layers)
@@ -232,8 +232,9 @@ def create_generator(generator_inputs, generator_outputs_channels):
             layers.append(output)
 
     # decoder_1: [batch, 128, 128, ngf * 2] => [batch, 256, 256, generator_outputs_channels]
+    # new decoder_1: [batch, 32, 32, ngf * 4] => [batch, 256, 256, generator_outputs_channels]
     with tf.variable_scope("decoder_1"):
-        input = tf.concat([layers[-1], layers[0]], axis=3)
+        input = tf.concat([layers[-1], layers[2]], axis=3)
         rectified = tf.nn.relu(input)
         output = deconv(rectified, generator_outputs_channels)
         output = tf.tanh(output)
@@ -247,8 +248,10 @@ def create_model(inputs, targets):
         n_layers = 3
         layers = []
 
+        res_input = tf.image.resize_images(discrim_inputs, [64,64], method=tf.image.ResizeMethod.AREA)
+
         # 2x [batch, height, width, in_channels] => [batch, height, width, in_channels * 2]
-        input = tf.concat([discrim_inputs, discrim_targets], axis=3)
+        input = tf.concat([res_input, discrim_targets], axis=3)
 
         # layer_1: [batch, 256, 256, in_channels * 2] => [batch, 128, 128, ndf]
         with tf.variable_scope("layer_1"):
