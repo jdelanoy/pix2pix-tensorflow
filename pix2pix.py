@@ -33,16 +33,16 @@ parser.add_argument("--trace_freq", type=int, default=0, help="trace execution e
 parser.add_argument("--display_freq", type=int, default=0, help="write current training images every display_freq steps")
 parser.add_argument("--save_freq", type=int, default=5000, help="save model every save_freq steps, 0 to disable")
 
-parser.add_argument("--aspect_ratio", type=float, default=1.0, help="aspect ratio of output images (width/height)")
-parser.add_argument("--lab_colorization", action="store_true", help="split input image into brightness (A) and color (B)")
+# parser.add_argument("--aspect_ratio", type=float, default=1.0, help="aspect ratio of output images (width/height)")
+# parser.add_argument("--lab_colorization", action="store_true", help="split input image into brightness (A) and color (B)")
 parser.add_argument("--batch_size", type=int, default=1, help="number of images in batch")
 parser.add_argument("--which_direction", type=str, default="AtoB", choices=["AtoB", "BtoA"])
 parser.add_argument("--ngf", type=int, default=64, help="number of generator filters in first conv layer")
 parser.add_argument("--ndf", type=int, default=64, help="number of discriminator filters in first conv layer")
-parser.add_argument("--scale_size", type=int, default=286, help="scale images to this size before cropping to 256x256")
-parser.add_argument("--flip", dest="flip", action="store_true", help="flip images horizontally")
-parser.add_argument("--no_flip", dest="flip", action="store_false", help="don't flip images horizontally")
-parser.set_defaults(flip=True)
+# parser.add_argument("--scale_size", type=int, default=256, help="scale images to this size before cropping to 256x256")
+# parser.add_argument("--flip", dest="flip", action="store_true", help="flip images horizontally")
+# parser.add_argument("--no_flip", dest="flip", action="store_false", help="don't flip images horizontally")
+# parser.set_defaults(flip=False)
 parser.add_argument("--lr", type=float, default=0.0002, help="initial learning rate for adam")
 parser.add_argument("--beta1", type=float, default=0.5, help="momentum term of adam")
 parser.add_argument("--l1_weight", type=float, default=100.0, help="weight on L1 term for generator gradient")
@@ -99,17 +99,17 @@ def load_examples():
 
         raw_input.set_shape([None, None, 3])
 
-        if a.lab_colorization:
-            # load color and brightness from image, no B image exists here
-            lab = rgb_to_lab(raw_input)
-            L_chan, a_chan, b_chan = preprocess_lab(lab)
-            a_images = tf.expand_dims(L_chan, axis=2)
-            b_images = tf.stack([a_chan, b_chan], axis=2)
-        else:
+        # if a.lab_colorization:
+        #     # load color and brightness from image, no B image exists here
+        #     lab = rgb_to_lab(raw_input)
+        #     L_chan, a_chan, b_chan = preprocess_lab(lab)
+        #     a_images = tf.expand_dims(L_chan, axis=2)
+        #     b_images = tf.stack([a_chan, b_chan], axis=2)
+        # else:
             # break apart image pair and move to range [-1, 1]
-            width = tf.shape(raw_input)[1] # [height, width, channels]
-            a_images = preprocess(raw_input[:,:width//2,:])
-            b_images = preprocess(raw_input[:,width//2:,:])
+        width = tf.shape(raw_input)[1] # [height, width, channels]
+        a_images = preprocess(raw_input[:,:width//2,:])
+        b_images = preprocess(raw_input[:,width//2:,:])
 
     if a.which_direction == "AtoB":
         inputs, targets = [a_images, b_images]
@@ -117,24 +117,24 @@ def load_examples():
         inputs, targets = [b_images, a_images]
     else:
         raise Exception("invalid direction")
-
+    
     # synchronize seed for image operations so that we do the same operations to both
     # input and output images
     seed = random.randint(0, 2**31 - 1)
     def transform(image):
         r = image
-        if a.flip:
-            r = tf.image.random_flip_left_right(r, seed=seed)
+        # if a.flip:
+        #     r = tf.image.random_flip_left_right(r, seed=seed)
 
         # area produces a nice downscaling, but does nearest neighbor for upscaling
         # assume we're going to be doing downscaling here
-        r = tf.image.resize_images(r, [a.scale_size, a.scale_size], method=tf.image.ResizeMethod.AREA)
+        r = tf.image.resize_images(r, [CROP_SIZE, CROP_SIZE], method=tf.image.ResizeMethod.AREA)
 
-        offset = tf.cast(tf.floor(tf.random_uniform([2], 0, a.scale_size - CROP_SIZE + 1, seed=seed)), dtype=tf.int32)
-        if a.scale_size > CROP_SIZE:
-            r = tf.image.crop_to_bounding_box(r, offset[0], offset[1], CROP_SIZE, CROP_SIZE)
-        elif a.scale_size < CROP_SIZE:
-            raise Exception("scale size cannot be less than crop size")
+        # offset = tf.cast(tf.floor(tf.random_uniform([2], 0, a.scale_size - CROP_SIZE + 1, seed=seed)), dtype=tf.int32)
+        # if a.scale_size > CROP_SIZE:
+        #     r = tf.image.crop_to_bounding_box(r, offset[0], offset[1], CROP_SIZE, CROP_SIZE)
+        # elif a.scale_size < CROP_SIZE:
+        #     raise Exception("scale size cannot be less than crop size")
         return r
 
     with tf.name_scope("input_images"):
@@ -363,8 +363,8 @@ def main():
     ######################################################################
     if a.mode == "export":
         # export the generator to a meta graph that can be imported later for standalone generation
-        if a.lab_colorization:
-            raise Exception("export not supported for lab_colorization")
+        # if a.lab_colorization:
+        #     raise Exception("export not supported for lab_colorization")
 
         input = tf.placeholder(tf.string, shape=[1])
         input_data = tf.decode_base64(input[0])
@@ -425,33 +425,32 @@ def main():
     model = create_model(examples.inputs, examples.targets)
 
     # undo colorization splitting on images that we use for display/output
-    if a.lab_colorization:
-        if a.which_direction == "AtoB":
-            # inputs is brightness, this will be handled fine as a grayscale image
-            # need to augment targets and outputs with brightness
-            targets = augment(examples.targets, examples.inputs)
-            outputs = augment(model.outputs, examples.inputs)
-            # inputs can be deprocessed normally and handled as if they are single channel
-            # grayscale images
-            inputs = deprocess(examples.inputs)
-        elif a.which_direction == "BtoA":
-            # inputs will be color channels only, get brightness from targets
-            inputs = augment(examples.inputs, examples.targets)
-            targets = deprocess(examples.targets)
-            outputs = deprocess(model.outputs)
-        else:
-            raise Exception("invalid direction")
-    else:
-        inputs = deprocess(examples.inputs)
-        targets = deprocess(examples.targets)
-        outputs = deprocess(model.outputs)
+    # if a.lab_colorization:
+    #     if a.which_direction == "AtoB":
+    #         # inputs is brightness, this will be handled fine as a grayscale image
+    #         # need to augment targets and outputs with brightness
+    #         targets = augment(examples.targets, examples.inputs)
+    #         outputs = augment(model.outputs, examples.inputs)
+    #         # inputs can be deprocessed normally and handled as if they are single channel
+    #         # grayscale images
+    #         inputs = deprocess(examples.inputs)
+    #     elif a.which_direction == "BtoA":
+    #         # inputs will be color channels only, get brightness from targets
+    #         inputs = augment(examples.inputs, examples.targets)
+    #         targets = deprocess(examples.targets)
+    #         outputs = deprocess(model.outputs)
+    #     else:
+    #         raise Exception("invalid direction")
+    # else:
+    inputs = deprocess(examples.inputs)
+    targets = deprocess(examples.targets)
+    outputs = deprocess(model.outputs)
 
     def convert(image):
-        if a.aspect_ratio != 1.0:
-            # upscale to correct aspect ratio
-            size = [CROP_SIZE, int(round(CROP_SIZE * a.aspect_ratio))]
-            image = tf.image.resize_images(image, size=size, method=tf.image.ResizeMethod.BICUBIC)
-
+        # if a.aspect_ratio != 1.0:
+        #     # upscale to correct aspect ratio
+        #     size = [CROP_SIZE, int(round(CROP_SIZE * a.aspect_ratio))]
+        #     image = tf.image.resize_images(image, size=size, method=tf.image.ResizeMethod.BICUBIC)
         return tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
 
     # reverse any processing on images so they can be written to disk or displayed to user
