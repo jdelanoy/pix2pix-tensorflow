@@ -68,7 +68,7 @@ def load_examples():
     input_paths = glob.glob(os.path.join(a.input_dir, "*.jpg"))
     decode = tf.image.decode_jpeg
     if len(input_paths) == 0:
-        input_paths = glob.glob(os.path.join(a.input_dir, "*.png"))
+        input_paths = glob.glob(os.path.join(a.input_dir, "*.png")) #WARNING
         decode = tf.image.decode_png
 
     if len(input_paths) == 0:
@@ -90,7 +90,6 @@ def load_examples():
         reader = tf.WholeFileReader()
         paths, contents = reader.read(path_queue)
         raw_input = decode(contents)
-        print(raw_input.get_shape())
         raw_input = tf.image.convert_image_dtype(raw_input, dtype=tf.float32)
 
         assertion = tf.assert_equal(tf.shape(raw_input)[2], 4, message="image does not have 3 channels")
@@ -111,7 +110,6 @@ def load_examples():
         a_images = preprocess(raw_input[:,:width//2,:])
         b_images = preprocess(raw_input[:,width//2:,:])
 
-    print(a_images.get_shape())
     #rebuild voxels from image
     
     if a.which_direction == "AtoB":
@@ -150,8 +148,8 @@ def load_examples():
 
     paths_batch, inputs_batch, targets_batch = tf.train.batch([paths, input_images, target_images], batch_size=a.batch_size)
     steps_per_epoch = int(math.ceil(len(input_paths) / a.batch_size))
-    print(input_images.get_shape())
-    print(target_images.get_shape())
+    print("size of input ",input_images.get_shape())
+    print("size of targets ",target_images.get_shape())
 
     return Examples(
         paths=paths_batch,
@@ -455,6 +453,11 @@ def main():
     targets = deprocess(examples.targets)
     outputs = deprocess(model.outputs)
 
+    print ("shapes")
+    print(inputs.get_shape())
+    print(targets.get_shape())
+    print(outputs.get_shape())
+
     def convert(image):
         # if a.aspect_ratio != 1.0:
         #     # upscale to correct aspect ratio
@@ -577,8 +580,9 @@ def main():
         print("parameter_count =", sess.run(parameter_count))
 
         if a.checkpoint is not None:
-            print("loading model from checkpoint")
+            print("loading model from checkpoint:")
             checkpoint = tf.train.latest_checkpoint(a.checkpoint)
+            print(checkpoint)
             saver.restore(sess, checkpoint)
 
         max_steps = 2**32
