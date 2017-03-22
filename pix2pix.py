@@ -17,6 +17,7 @@ import time
 from image_processing import *
 from layers import *
 from test_output import *
+from voxels_to_img import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--input_dir", help="path to folder containing images")
@@ -133,25 +134,12 @@ def load_examples():
     def transform_voxels(image):
         vox_size=64
         r = image
-        print ("tranform voxels")
-        print(r.get_shape())
+        #print ("tranform voxels")
+        #print(r.get_shape())
         # area produces a nice downscaling, but does nearest neighbor for upscaling
         # assume we're going to be doing downscaling here
         r = tf.image.resize_images(r, [CROP_SIZE, CROP_SIZE], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
-        print(r.get_shape())
-        vox = r[:vox_size,:vox_size,:]
-        for i in range(0,256,64):
-            for j in range(0,256,64):
-                #print(str(i)+" "+str(j))
-                vox=tf.concat([vox,r[i:i+vox_size,j:j+vox_size,:]],2)
-                #vox.append(r[i:i+vox_size,j:j+vox_size,:])
-
-        #print(len(vox))
-        vox = vox[:,:,4:]
-        print(vox.get_shape())
-        #voxels=tf.concat(vox[1:],3)
-        #print(voxels.get_shape())
-        print ("end tranform voxels")
+        vox=unpack_voxels(r,64,4)
         return vox
 
     with tf.name_scope("input_images"):
@@ -476,14 +464,22 @@ def main():
 
     
     def convert_voxels(image):
-        # if a.aspect_ratio != 1.0:
-        #     # upscale to correct aspect ratio
-        #     size = [CROP_SIZE, int(round(CROP_SIZE * a.aspect_ratio))]
-        #     image = tf.image.resize_images(image, size=size, method=tf.image.ResizeMethod.BICUBIC)
-        imageI = tf.argmax(image,2)
-        imageF = tf.expand_dims(tf.to_float(imageI)/64.0,-1);
-        #imageF = tf.image.convert_image_dtype(imageI, dtype=tf.float32)/64.0;
-        return tf.image.convert_image_dtype(imageF, dtype=tf.uint8, saturate=True)
+        im_rgb = tf.expand_dims(voxels_to_jet_depth(image[0],64.0),0)
+        print ("convert_voxels",im_rgb.get_shape())
+        return tf.image.convert_image_dtype(im_rgb, dtype=tf.uint8, saturate=True)
+
+    def convert_voxels_grid(image):
+        res = tf.expand_dims(voxels_to_grid(image[0],64.0,8),0)
+        print ("convert_grid",res.get_shape())
+        return tf.image.convert_image_dtype(res, dtype=tf.uint8, saturate=True)
+
+    def convert_voxels_packed(image):
+        res = tf.expand_dims(pack_voxels(image[0],64,4),0)
+        print ("convert_packed",res.get_shape())
+        return tf.image.convert_image_dtype(res, dtype=tf.uint8, saturate=True)
+
+    print(targets.get_shape())
+    print(outputs.get_shape())
 
     # reverse any processing on images so they can be written to disk or displayed to user
     with tf.name_scope("convert_inputs"):
@@ -492,16 +488,37 @@ def main():
     with tf.name_scope("convert_targets"):
         converted_targets = convert_voxels(targets)
 
+    with tf.name_scope("convert_targets_grid"):
+        converted_targets_grid = convert_voxels_grid(targets)
+
     with tf.name_scope("convert_outputs"):
         converted_outputs = convert_voxels(outputs)
 
+    with tf.name_scope("convert_outputs_grid"):
+        converted_outputs_grid = convert_voxels_grid(outputs)
+
+    # print(converted_inputs.get_shape())
+    # print(converted_targets.get_shape())
+    # print(converted_targets_grid.get_shape())
+    # print(converted_outputs.get_shape())
+    def pack_unpack(image):
+        grid = unpack_voxels(pack_voxels(outputs[0],64,4),64,4)
+        res = tf.expand_dims(voxels_to_grid(grid,64.0,8),0)
+        print ("pack unpack",res.get_shape())
+        return tf.image.convert_image_dtype(res, dtype=tf.uint8, saturate=True)
+
+    
     with tf.name_scope("encode_images"):
         display_fetches = {
             "paths": examples.paths,
             "inputs": tf.map_fn(tf.image.encode_png, converted_inputs, dtype=tf.string, name="input_pngs"),
             "targets": tf.map_fn(tf.image.encode_png, converted_targets, dtype=tf.string, name="target_pngs"),
+            "targets_grid": tf.map_fn(tf.image.encode_png, converted_targets_grid, dtype=tf.string, name="target_pngs_grid"),
             "outputs": tf.map_fn(tf.image.encode_png, converted_outputs, dtype=tf.string, name="output_pngs"),
-        }
+            "outputs_grid": tf.map_fn(tf.image.encode_png, converted_outputs_grid, dtype=tf.string, name="output_pngs_grid"), 
+            "outputs_packed": tf.map_fn(tf.image.encode_png, convert_voxels_packed(outputs), dtype=tf.string, name="output_pngs_packed"),
+            #"outputs_test": tf.map_fn(tf.image.encode_png, pack_unpack(outputs), dtype=tf.string, name="output_pngs_test"),
+       }
 
     ##################################### END LOAD/TREAT DATA
 
@@ -514,8 +531,14 @@ def main():
     with tf.name_scope("targets_summary"):
         tf.summary.image("targets", converted_targets)
 
+    with tf.name_scope("targets_summary_grid"):
+        tf.summary.image("targets_grid", converted_targets_grid)
+
     with tf.name_scope("outputs_summary"):
         tf.summary.image("outputs", converted_outputs)
+
+    with tf.name_scope("outputs_summary_grid"):
+        tf.summary.image("outputs_grid", converted_outputs_grid)
 
     with tf.name_scope("predict_real_summary"):
         tf.summary.image("predict_real", tf.image.convert_image_dtype(model.predict_real, dtype=tf.uint8))
