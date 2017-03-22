@@ -568,7 +568,12 @@ def main():
 
     logdir = a.output_dir if (a.trace_freq > 0 or a.summary_freq > 0) else None
     sv = tf.train.Supervisor(logdir=logdir, save_summaries_secs=0, saver=None)
-    with sv.managed_session() as sess:
+    if a.mode == "test":
+        gpu_mem=0.3
+    else:
+        gpu_mem=0.6
+    config=tf.ConfigProto(gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=gpu_mem))
+    with sv.managed_session(config=config) as sess:
         print("parameter_count =", sess.run(parameter_count))
 
         if a.checkpoint is not None:
