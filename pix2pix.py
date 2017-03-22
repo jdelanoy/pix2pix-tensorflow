@@ -593,10 +593,11 @@ def main():
             max_steps = min(examples.steps_per_epoch, max_steps)
             for step in range(max_steps):
                 results = sess.run(display_fetches)
-                filesets = save_images(results)
-                for i, f in enumerate(filesets):
-                    print("evaluated image", f["name"])
-                index_path = append_index(filesets)
+                filesets = save_images(results,a.output_dir)
+                # for i, f in enumerate(filesets):
+                #     if i % 10 == 0:
+                #         print("evaluated image", f["name"])
+                index_path = append_index(filesets,a.output_dir)
 
             print("wrote index at", index_path)
         else:

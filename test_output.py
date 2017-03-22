@@ -4,8 +4,8 @@ import os
 
 
 
-def save_images(fetches, step=None):
-    image_dir = os.path.join(a.output_dir, "images")
+def save_images(fetches, output_dir, step=None):
+    image_dir = os.path.join(output_dir, "images")
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
 
@@ -13,7 +13,7 @@ def save_images(fetches, step=None):
     for i, in_path in enumerate(fetches["paths"]):
         name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
         fileset = {"name": name, "step": step}
-        for kind in ["inputs", "outputs", "targets"]:
+        for kind in ["inputs", "outputs", "targets", "outputs_grid", "targets_grid","outputs_packed"]:
             filename = name + "-" + kind + ".png"
             if step is not None:
                 filename = "%08d-%s" % (step, filename)
@@ -26,8 +26,8 @@ def save_images(fetches, step=None):
     return filesets
 
 
-def append_index(filesets, step=False):
-    index_path = os.path.join(a.output_dir, "index.html")
+def append_index(filesets, output_dir, step=False):
+    index_path = os.path.join(output_dir, "index.html")
     if os.path.exists(index_path):
         index = open(index_path, "a")
     else:
@@ -35,7 +35,10 @@ def append_index(filesets, step=False):
         index.write("<html><body><table><tr>")
         if step:
             index.write("<th>step</th>")
-        index.write("<th>name</th><th>input</th><th>output</th><th>target</th></tr>")
+        index.write("<th>name</th>")
+        for kind in ["inputs", "outputs", "targets", "outputs_grid", "targets_grid"]:
+            index.write("<th>%s</th>" % kind)
+        index.write("</tr>\n")
 
     for fileset in filesets:
         index.write("<tr>")
@@ -44,10 +47,10 @@ def append_index(filesets, step=False):
             index.write("<td>%d</td>" % fileset["step"])
         index.write("<td>%s</td>" % fileset["name"])
 
-        for kind in ["inputs", "outputs", "targets"]:
+        for kind in ["inputs", "outputs", "targets", "outputs_grid", "targets_grid"]:
             index.write("<td><img src='images/%s'></td>" % fileset[kind])
 
-        index.write("</tr>")
+        index.write("</tr>\n")
     return index_path
 
 
