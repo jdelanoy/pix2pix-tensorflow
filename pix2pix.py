@@ -527,6 +527,7 @@ def main():
             "outputs": tf.map_fn(tf.image.encode_png, converted_outputs, dtype=tf.string, name="output_pngs"),
             "outputs_grid": tf.map_fn(tf.image.encode_png, converted_outputs_grid, dtype=tf.string, name="output_pngs_grid"), 
             "outputs_packed": tf.map_fn(tf.image.encode_png, convert_voxels_packed(outputs), dtype=tf.string, name="output_pngs_packed"),
+            "targets_packed": tf.map_fn(tf.image.encode_png, convert_voxels_packed(targets), dtype=tf.string, name="output_pngs_packed"),
             #"outputs_test": tf.map_fn(tf.image.encode_png, pack_unpack(outputs), dtype=tf.string, name="output_pngs_test"),
        }
 
