@@ -41,7 +41,7 @@ def interpolate(val, y0, x0, y1, x1 ):
 #input of sixe vox*vox*vox
 def voxels_to_jet_depth(voxels, vox_size):
     with tf.name_scope("voxels_to_jet_depth"):
-        mask = tf.cast(voxels>0.2, dtype=tf.float32)
+        mask = tf.cast(voxels>0.5, dtype=tf.float32)
         depth_I = tf.argmax(mask,2)
         depth = tf.to_float(depth_I)/vox_size;
         return tf.expand_dims(depth,-1)#gray_to_jet(depth)
