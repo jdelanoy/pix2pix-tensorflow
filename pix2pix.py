@@ -495,17 +495,16 @@ def main():
     with tf.name_scope("convert_inputs"):
         converted_inputs = convert(inputs)
 
-    with tf.name_scope("convert_targets"):
+    with tf.name_scope("convert_results"):
         converted_targets = convert_voxels(targets)
-
-    with tf.name_scope("convert_targets_grid"):
-        converted_targets_grid = convert_voxels_grid(targets)
-
-    with tf.name_scope("convert_outputs"):
         converted_outputs = convert_voxels(outputs)
+        converted_results = tf.concat([converted_outputs,converted_targets],0)
+        print ("results",converted_results.get_shape())
 
-    with tf.name_scope("convert_outputs_grid"):
+    with tf.name_scope("convert_results_grid"):
+        converted_targets_grid = convert_voxels_grid(targets)
         converted_outputs_grid = convert_voxels_grid(outputs)
+        converted_results_grid = tf.concat([converted_outputs_grid,converted_targets_grid],0)
 
     # print(converted_inputs.get_shape())
     # print(converted_targets.get_shape())
@@ -514,7 +513,7 @@ def main():
     def pack_unpack(image):
         grid = unpack_voxels(pack_voxels(outputs[0],64,4),64,4)
         res = tf.expand_dims(voxels_to_grid(grid,64.0,8),0)
-        print ("pack unpack",res.get_shape())
+        #print ("pack unpack",res.get_shape())
         return tf.image.convert_image_dtype(res, dtype=tf.uint8, saturate=True)
 
     
@@ -539,17 +538,11 @@ def main():
     with tf.name_scope("inputs_summary"):
         tf.summary.image("inputs", converted_inputs)
 
-    with tf.name_scope("targets_summary"):
-        tf.summary.image("targets", converted_targets)
+    with tf.name_scope("results_summary"):
+        tf.summary.image("results", converted_results)
 
-    with tf.name_scope("targets_summary_grid"):
-        tf.summary.image("targets_grid", converted_targets_grid)
-
-    with tf.name_scope("outputs_summary"):
-        tf.summary.image("outputs", converted_outputs)
-
-    with tf.name_scope("outputs_summary_grid"):
-        tf.summary.image("outputs_grid", converted_outputs_grid)
+    with tf.name_scope("results_summary_grid"):
+        tf.summary.image("results_grid", converted_results_grid)
 
     with tf.name_scope("predict_real_summary"):
         tf.summary.image("predict_real", tf.image.convert_image_dtype(model.predict_real, dtype=tf.uint8))
@@ -603,13 +596,22 @@ def main():
             # testing
             # at most, process the test data once
             max_steps = min(examples.steps_per_epoch, max_steps)
+            index_path = os.path.join(a.output_dir, "index.html")
+            index = open(index_path, "w")
+            index.write("<html><body><p>checkpoint : %s</p>\n" % checkpoint)
+            init_table(index)
             for step in range(max_steps):
                 results = sess.run(display_fetches)
                 filesets = save_images(results,a.output_dir)
+                # count=0
+                # total=len(filesets)
                 # for i, f in enumerate(filesets):
-                #     if i % 10 == 0:
-                #         print("evaluated image", f["name"])
-                index_path = append_index(filesets,a.output_dir)
+                #     if count % 10 == 0:
+                #         print("evaluated image", f["name"], "(",count,"/",total,")")
+                #     count +=1
+                append_index(filesets,index)
+            index.write("</body></html>")
+            index.close()
 
             print("wrote index at", index_path)
         else:

@@ -35,21 +35,18 @@ def save_images(fetches, output_dir, step=None):
         filesets.append(fileset)
     return filesets
 
+def init_table(index, step=False):
+    index.write("<table><tr>")
+    if step:
+        index.write("<th>step</th>")
+    index.write("<th>name</th>")
+    for kind in ["inputs", "outputs", "targets", "outputs_grid", "targets_grid", "outputs_normals", "targets_normals"]:
+        index.write("<th>%s</th>" % kind)
+    index.write("</tr>\n")
+    return
 
-def append_index(filesets, output_dir, step=False):
-    index_path = os.path.join(output_dir, "index.html")
-    if os.path.exists(index_path):
-        index = open(index_path, "a")
-    else:
-        index = open(index_path, "w")
-        index.write("<html><body><table><tr>")
-        if step:
-            index.write("<th>step</th>")
-        index.write("<th>name</th>")
-        for kind in ["inputs", "outputs", "targets", "outputs_grid", "targets_grid", "outputs_normals", "targets_normals"]:
-            index.write("<th>%s</th>" % kind)
-        index.write("</tr>\n")
-
+    
+def append_index(filesets, index, step=False):
     for fileset in filesets:
         index.write("<tr>")
 
@@ -61,6 +58,6 @@ def append_index(filesets, output_dir, step=False):
             index.write("<td><img src='images/%s' width='256' height='256'></td>" % fileset[kind])
 
         index.write("</tr>\n")
-    return index_path
+    return 
 
 
